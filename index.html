@@ -448,10 +448,12 @@ function save() {
 
 async function loadUserData() {
   const { data, error } = await sb.from('budget_data').select('data').eq('user_id', currentUser.id).single();
+  if (error) { console.error('loadUserData error:', error); }
   if (data?.data) {
     S = { ...defaultState(), ...data.data };
     migrateState();
   } else {
+    console.warn('loadUserData: no data found for user', currentUser.id);
     S = defaultState();
   }
 }
