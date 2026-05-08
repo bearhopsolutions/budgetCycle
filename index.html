@@ -449,16 +449,21 @@ function save() {
 async function loadUserData() {
   console.log('loadUserData: fetching for user', currentUser?.id);
   try {
-    const { data: rows, error } = await sb.from('budget_data').select('data').eq('user_id', currentUser.id).limit(1);
-    console.log('loadUserData result:', JSON.stringify({ rows, error }));
-    if (error) { console.error('loadUserData error:', error); }
+    const { data: { session } } = await sb.auth.getSession();
+    console.log('loadUserData: session token present?', !!session?.access_token);
+    const res = await fetch(
+      `${SUPA_URL}/rest/v1/budget_data?user_id=eq.${currentUser.id}&select=data&limit=1`,
+      { headers: { 'apikey': SUPA_KEY, 'Authorization': `Bearer ${session.access_token}` } }
+    );
+    const rows = await res.json();
+    console.log('loadUserData result:', JSON.stringify(rows));
     const row = rows?.[0];
     if (row?.data) {
       S = { ...defaultState(), ...row.data };
       migrateState();
       console.log('loadUserData: loaded accounts:', S.accounts?.length);
     } else {
-      console.warn('loadUserData: no data found for user', currentUser.id);
+      console.warn('loadUserData: no data found');
       S = defaultState();
     }
   } catch(e) {
