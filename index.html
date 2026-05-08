@@ -1221,8 +1221,8 @@ async function init() {
   // Listen for auth state changes (login, logout, token refresh)
   sb.auth.onAuthStateChange(async (event, session) => {
     if (session?.user) {
-      await loadUserData();
       showApp(session.user);
+      await loadUserData();
       renderDashboard();
       if (document.getElementById('page-settings').classList.contains('active')) renderSettings();
     } else {
@@ -1235,8 +1235,8 @@ async function init() {
   // Check for an existing session on load
   const { data: { session } } = await sb.auth.getSession();
   if (session?.user) {
-    await loadUserData();
     showApp(session.user);
+    await loadUserData();
   }
   renderDashboard();
 }
