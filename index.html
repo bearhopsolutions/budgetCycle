@@ -1,0 +1,1247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Budget Cycle</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f4f8;color:#1a202c;min-height:100vh;display:flex;}
+.sidebar{width:220px;background:#1e293b;color:white;display:flex;flex-direction:column;min-height:100vh;position:fixed;left:0;top:0;bottom:0;z-index:100;}
+.sidebar-logo{padding:24px 20px;font-size:20px;font-weight:700;color:#60a5fa;border-bottom:1px solid #334155;}
+.sidebar-logo span{font-size:12px;display:block;color:#94a3b8;font-weight:400;margin-top:2px;}
+.nav-item{display:flex;align-items:center;gap:10px;padding:12px 20px;cursor:pointer;color:#94a3b8;transition:all 0.2s;font-size:14px;border-left:3px solid transparent;}
+.nav-item:hover{background:#334155;color:white;}
+.nav-item.active{background:#1d4ed8;color:white;border-left-color:#60a5fa;}
+.main{margin-left:220px;flex:1;}
+.page{display:none;}
+.page.active{display:block;}
+.topbar{background:white;padding:16px 32px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;}
+.topbar-title{font-size:18px;font-weight:700;}
+.topbar-sub{font-size:13px;color:#94a3b8;margin-top:2px;}
+.content{padding:32px;}
+.btn{padding:10px 20px;border-radius:8px;border:none;cursor:pointer;font-size:14px;font-weight:600;transition:all 0.2s;}
+.btn-primary{background:#3b82f6;color:white;}
+.btn-primary:hover{background:#2563eb;}
+.btn-secondary{background:#e2e8f0;color:#475569;}
+.btn-secondary:hover{background:#cbd5e1;}
+.btn-danger{background:#fee2e2;color:#b91c1c;padding:6px 12px;font-size:12px;}
+.btn-danger:hover{background:#fecaca;}
+.btn-sm{padding:6px 12px;font-size:12px;}
+.card{background:white;border-radius:12px;padding:24px;box-shadow:0 1px 3px rgba(0,0,0,0.08);}
+.summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:16px;margin-bottom:24px;}
+.summary-card{background:white;border-radius:12px;padding:20px;box-shadow:0 1px 3px rgba(0,0,0,0.08);border-left:4px solid #3b82f6;}
+.summary-card.green{border-left-color:#10b981;}
+.summary-card.red{border-left-color:#ef4444;}
+.summary-card.purple{border-left-color:#8b5cf6;}
+.s-label{font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.05em;font-weight:600;}
+.s-value{font-size:26px;font-weight:700;margin-top:4px;}
+.s-value.pos{color:#10b981;}
+.s-value.neg{color:#ef4444;}
+.s-sub{font-size:12px;color:#94a3b8;margin-top:4px;}
+.chart-card{background:white;border-radius:12px;padding:24px;box-shadow:0 1px 3px rgba(0,0,0,0.08);margin-bottom:24px;}
+.chart-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;}
+.chart-title{font-size:16px;font-weight:700;}
+.chart-sub{font-size:12px;color:#94a3b8;margin-top:2px;}
+.chart-btns{display:flex;gap:6px;}
+.cbtn{padding:5px 12px;border-radius:6px;border:1px solid #e2e8f0;background:white;cursor:pointer;font-size:12px;color:#64748b;}
+.cbtn.active{background:#3b82f6;color:white;border-color:#3b82f6;}
+.dash-lists{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+table{width:100%;border-collapse:collapse;}
+th{text-align:left;padding:10px 16px;background:#f8fafc;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0;}
+td{padding:12px 16px;border-bottom:1px solid #f1f5f9;font-size:14px;vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:#fafbff;}
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;}
+.b-blue{background:#dbeafe;color:#1d4ed8;}
+.b-green{background:#dcfce7;color:#15803d;}
+.b-red{background:#fee2e2;color:#b91c1c;}
+.b-purple{background:#ede9fe;color:#7c3aed;}
+.b-yellow{background:#fef3c7;color:#b45309;}
+.amt-pos{color:#10b981;font-weight:600;}
+.amt-neg{color:#ef4444;font-weight:600;}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:200;align-items:center;justify-content:center;}
+.modal-overlay.show{display:flex;}
+.modal{background:white;border-radius:16px;padding:32px;width:460px;max-width:92vw;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.2);}
+.modal-title{font-size:18px;font-weight:700;margin-bottom:24px;}
+.form-group{margin-bottom:16px;}
+label{display:block;font-size:13px;font-weight:600;color:#374151;margin-bottom:6px;}
+input,select{width:100%;padding:10px 14px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;outline:none;transition:border .2s;background:white;}
+input:focus,select:focus{border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.1);}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.modal-actions{display:flex;gap:12px;margin-top:24px;justify-content:flex-end;}
+.empty{text-align:center;padding:48px 24px;color:#94a3b8;}
+.empty .ico{font-size:40px;margin-bottom:12px;}
+.empty p{font-size:14px;color:#64748b;margin-bottom:4px;}
+.empty small{font-size:12px;}
+.info-box{border-radius:10px;padding:14px 18px;margin-bottom:20px;font-size:13px;line-height:1.6;}
+.info-blue{background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;}
+.info-green{background:#f0fdf4;border:1px solid #bbf7d0;color:#15803d;}
+.info-yellow{background:#fffbeb;border:1px solid #fde68a;color:#92400e;}
+.list-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f1f5f9;}
+.list-row:last-child{border-bottom:none;}
+.list-name{font-size:14px;font-weight:600;}
+.list-date{font-size:12px;color:#94a3b8;}
+.snap-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #f1f5f9;}
+.snap-row:last-child{border-bottom:none;}
+.snap-dot{width:10px;height:10px;border-radius:50%;background:#3b82f6;flex-shrink:0;}
+.snap-date{font-size:13px;color:#64748b;min-width:90px;}
+.snap-bal{font-size:15px;font-weight:700;}
+.snap-change{font-size:12px;margin-left:auto;}
+#auth-screen{position:fixed;inset:0;background:#f0f4f8;z-index:400;display:flex;align-items:center;justify-content:center;}
+.auth-box{background:white;border-radius:16px;padding:40px;width:400px;max-width:92vw;box-shadow:0 8px 40px rgba(0,0,0,0.12);}
+.auth-logo{font-size:22px;font-weight:700;color:#3b82f6;margin-bottom:6px;}
+.auth-tagline{font-size:13px;color:#94a3b8;margin-bottom:28px;}
+.auth-title{font-size:18px;font-weight:700;margin-bottom:20px;}
+.auth-error{background:#fee2e2;color:#b91c1c;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:16px;display:none;}
+.auth-switch{text-align:center;margin-top:18px;font-size:13px;color:#64748b;}
+.auth-switch a{color:#3b82f6;text-decoration:none;}
+#breakdown-panel{border-top:1px solid #e2e8f0;padding-top:18px;margin-top:4px;}
+.bd-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;}
+.bd-title{font-size:14px;font-weight:700;}
+.bd-sub{font-size:12px;color:#94a3b8;margin-top:2px;}
+.bd-close{background:none;border:none;cursor:pointer;color:#94a3b8;font-size:18px;line-height:1;padding:0;}
+.bd-close:hover{color:#475569;}
+.bd-table{width:100%;border-collapse:collapse;font-size:13px;}
+.bd-table th{color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:.04em;padding:6px 10px;border-bottom:1px solid #e2e8f0;text-align:right;font-weight:600;}
+.bd-table th:first-child{text-align:left;}
+.bd-table td{padding:9px 10px;border-bottom:1px solid #f1f5f9;text-align:right;}
+.bd-table td:first-child{text-align:left;font-weight:600;}
+.bd-table tr.total-row td{border-top:2px solid #e2e8f0;border-bottom:none;font-weight:700;font-size:14px;}
+.bd-note{font-size:11px;color:#94a3b8;margin-top:10px;}
+::-webkit-scrollbar{width:5px;}
+::-webkit-scrollbar-track{background:#f1f5f9;}
+::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:3px;}
+</style>
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="sidebar-logo">💰 Budget Cycle<span>Smart money planning</span></div>
+  <nav style="flex:1;padding-top:8px;">
+    <div class="nav-item active" onclick="nav('dashboard')"><span>📊</span> Dashboard</div>
+    <div class="nav-item" onclick="nav('accounts')"><span>🏦</span> Accounts</div>
+    <div class="nav-item" onclick="nav('income')"><span>💵</span> Income</div>
+    <div class="nav-item" onclick="nav('bills')"><span>📋</span> Bills</div>
+    <div class="nav-item" onclick="nav('bigpurchases')"><span>🛒</span> Big Purchases</div>
+    <div class="nav-item" onclick="nav('events')"><span>⭐</span> One-Time Events</div>
+    <div class="nav-item" onclick="nav('settings')"><span>⚙️</span> Settings</div>
+  </nav>
+  <div style="padding:14px 20px;border-top:1px solid #334155;">
+    <div id="sidebar-status-dot" style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+      <div id="save-dot" style="width:7px;height:7px;border-radius:50%;background:#10b981;flex-shrink:0;"></div>
+      <span id="save-txt" style="font-size:11px;color:#475569;">Saved</span>
+    </div>
+    <div id="sidebar-user" style="font-size:11px;color:#64748b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:8px;"></div>
+    <button onclick="signOut()" style="background:none;border:1px solid #334155;color:#94a3b8;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;width:100%;">Sign Out</button>
+  </div>
+</aside>
+
+<main class="main">
+
+  <!-- DASHBOARD -->
+  <div class="page active" id="page-dashboard">
+    <div class="topbar">
+      <div><div class="topbar-title">Dashboard</div><div class="topbar-sub" id="today-lbl"></div></div>
+      <button class="btn btn-primary" onclick="nav('accounts')">Update Balances</button>
+    </div>
+    <div class="content">
+      <div class="summary-grid" id="summary-grid"></div>
+      <div class="chart-card">
+        <div class="chart-header">
+          <div><div class="chart-title">Balance Projection</div><div class="chart-sub">Based on income, bills, and your real spending habits</div></div>
+          <div class="chart-btns">
+            <button class="cbtn" onclick="setRange(1,this)">1 Mo</button>
+            <button class="cbtn active" onclick="setRange(3,this)">3 Mo</button>
+            <button class="cbtn" onclick="setRange(6,this)">6 Mo</button>
+            <button class="cbtn" onclick="setRange(12,this)">12 Mo</button>
+          </div>
+        </div>
+        <canvas id="proj-chart" style="max-height:300px;cursor:pointer;"></canvas>
+        <div id="breakdown-panel" style="display:none;"></div>
+      </div>
+      <div class="dash-lists" id="dash-lists"></div>
+    </div>
+  </div>
+
+  <!-- ACCOUNTS -->
+  <div class="page" id="page-accounts">
+    <div class="topbar">
+      <div><div class="topbar-title">Bank Accounts</div><div class="topbar-sub">Update your balances here — each update trains the habit tracker</div></div>
+      <button class="btn btn-primary" onclick="openModal('m-account');clearAccountForm()">+ Add Account</button>
+    </div>
+    <div class="content">
+      <div class="card" style="margin-bottom:20px;"><div style="overflow-x:auto;"><table>
+        <thead><tr><th>Account</th><th>Type</th><th>Balance</th><th>Last Updated</th><th>Actions</th></tr></thead>
+        <tbody id="accounts-body"></tbody>
+      </table></div></div>
+      <div class="card" id="snapshot-card">
+        <div style="font-weight:700;font-size:15px;margin-bottom:6px;">Balance History</div>
+        <div style="font-size:13px;color:#64748b;margin-bottom:16px;">Every time you edit a balance, a snapshot is saved here and used to calculate your spending habits.</div>
+        <div id="snapshot-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- INCOME -->
+  <div class="page" id="page-income">
+    <div class="topbar">
+      <div><div class="topbar-title">Income Sources</div><div class="topbar-sub">Regular paychecks, side gigs, etc.</div></div>
+      <button class="btn btn-primary" onclick="openModal('m-income');clearIncomeForm()">+ Add Income</button>
+    </div>
+    <div class="content"><div class="card"><div style="overflow-x:auto;"><table>
+      <thead><tr><th>Name</th><th>Amount</th><th>Frequency</th><th>Next Date</th><th>Deposits Into</th><th>Actions</th></tr></thead>
+      <tbody id="income-body"></tbody>
+    </table></div></div></div>
+  </div>
+
+  <!-- BILLS -->
+  <div class="page" id="page-bills">
+    <div class="topbar">
+      <div><div class="topbar-title">Bills & Recurring Expenses</div><div class="topbar-sub">Rent, subscriptions, loans, etc.</div></div>
+      <button class="btn btn-primary" onclick="openModal('m-bill');clearBillForm()">+ Add Bill</button>
+    </div>
+    <div class="content"><div class="card"><div style="overflow-x:auto;"><table>
+      <thead><tr><th>Name</th><th>Amount</th><th>Frequency</th><th>Next Due</th><th>Category</th><th>Paid From</th><th>Actions</th></tr></thead>
+      <tbody id="bills-body"></tbody>
+    </table></div></div></div>
+  </div>
+
+  <!-- BIG PURCHASES -->
+  <div class="page" id="page-bigpurchases">
+    <div class="topbar">
+      <div><div class="topbar-title">Big Purchases</div><div class="topbar-sub">Log large one-off purchases — they won't skew your spending habits</div></div>
+      <button class="btn btn-primary" onclick="openModal('m-bp');clearBpForm()">+ Add Big Purchase</button>
+    </div>
+    <div class="content">
+      <div class="info-box info-blue" id="habit-box"></div>
+      <div class="card"><div style="overflow-x:auto;"><table>
+        <thead><tr><th>Date</th><th>Description</th><th>Amount</th><th>Actions</th></tr></thead>
+        <tbody id="bp-body"></tbody>
+      </table></div></div>
+    </div>
+  </div>
+
+  <!-- ONE-TIME EVENTS -->
+  <div class="page" id="page-events">
+    <div class="topbar">
+      <div><div class="topbar-title">One-Time Events</div><div class="topbar-sub">Future bonuses, tax refunds, planned big expenses</div></div>
+      <button class="btn btn-primary" onclick="openModal('m-event');clearEventForm()">+ Add Event</button>
+    </div>
+    <div class="content"><div class="card"><div style="overflow-x:auto;"><table>
+      <thead><tr><th>Date</th><th>Description</th><th>Amount</th><th>Type</th><th>Actions</th></tr></thead>
+      <tbody id="events-body"></tbody>
+    </table></div></div></div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="page" id="page-settings">
+    <div class="topbar"><div><div class="topbar-title">Settings</div><div class="topbar-sub">Fallback estimates & data management</div></div></div>
+    <div class="content" style="display:flex;flex-direction:column;gap:20px;">
+      <div class="card">
+        <h3 style="font-size:15px;margin-bottom:8px;">Manual Daily Spending Fallback</h3>
+        <p style="font-size:13px;color:#64748b;margin-bottom:16px;">The system auto-calculates your spending habit from your balance updates. Set this as a fallback for when you haven't updated balances enough times yet (need at least 2 updates).</p>
+        <div style="display:flex;gap:16px;align-items:flex-end;">
+          <div class="form-group" style="margin:0;flex:1;"><label>Estimated Daily Spend ($)</label><input type="number" id="s-daily" placeholder="e.g. 60" min="0" step="0.01"></div>
+          <button class="btn btn-primary" onclick="saveSettings()">Save</button>
+        </div>
+        <p style="font-size:12px;color:#94a3b8;margin-top:10px;" id="s-habit-lbl"></p>
+      </div>
+      <div class="card">
+        <h3 style="font-size:15px;margin-bottom:8px;">Account</h3>
+        <p id="settings-account-info" style="font-size:13px;color:#64748b;margin-bottom:16px;"></p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <button class="btn btn-danger" style="padding:10px 20px;font-size:14px;" onclick="clearAll()">Clear All My Data</button>
+          <button class="btn btn-secondary" onclick="signOut()">Sign Out</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- ===== MODALS ===== -->
+
+<!-- Account Modal -->
+<div class="modal-overlay" id="m-account">
+  <div class="modal">
+    <div class="modal-title" id="account-modal-title">Add Bank Account</div>
+    <input type="hidden" id="a-id">
+    <div class="form-group"><label>Account Name</label><input id="a-name" placeholder="e.g. Chase Checking, Savings"></div>
+    <div class="form-row">
+      <div class="form-group"><label>Type</label><select id="a-type"><option value="checking">Checking</option><option value="savings">Savings</option><option value="cash">Cash</option><option value="investment">Investment</option><option value="other">Other</option></select></div>
+      <div class="form-group"><label>Current Balance ($)</label><input type="number" id="a-balance" placeholder="0.00" step="0.01"></div>
+    </div>
+    <div id="a-prev-wrap" style="display:none;margin-bottom:16px;padding:12px;background:#f8fafc;border-radius:8px;font-size:13px;color:#64748b;"></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('m-account')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveAccount()">Save & Snapshot</button>
+    </div>
+  </div>
+</div>
+
+<!-- Income Modal -->
+<div class="modal-overlay" id="m-income">
+  <div class="modal">
+    <div class="modal-title" id="income-modal-title">Add Income Source</div>
+    <input type="hidden" id="inc-id">
+    <div class="form-group"><label>Name</label><input id="inc-name" placeholder="e.g. Paycheck, Freelance, Side Gig"></div>
+    <div class="form-row">
+      <div class="form-group"><label>Amount per Payment ($)</label><input type="number" id="inc-amount" placeholder="0.00" step="0.01"></div>
+      <div class="form-group"><label>Frequency</label><select id="inc-freq">
+        <option value="weekly">Weekly</option>
+        <option value="biweekly">Bi-Weekly (every 2 wks)</option>
+        <option value="semimonthly">Twice a Month (1st & 15th)</option>
+        <option value="monthly">Monthly</option>
+        <option value="annual">Annually</option>
+      </select></div>
+    </div>
+    <div class="form-group"><label>Next Payment Date</label><input type="date" id="inc-date"></div>
+    <div class="form-group"><label>Deposit Into Account</label><select id="inc-account"><option value="">— Not assigned —</option></select></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('m-income')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveIncome()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Bill Modal -->
+<div class="modal-overlay" id="m-bill">
+  <div class="modal">
+    <div class="modal-title" id="bill-modal-title">Add Bill / Recurring Expense</div>
+    <input type="hidden" id="b-id">
+    <div class="form-group"><label>Bill Name</label><input id="b-name" placeholder="e.g. Rent, Netflix, Electric, Car Payment"></div>
+    <div class="form-row">
+      <div class="form-group"><label>Amount ($)</label><input type="number" id="b-amount" placeholder="0.00" step="0.01"></div>
+      <div class="form-group"><label>Frequency</label><select id="b-freq">
+        <option value="weekly">Weekly</option>
+        <option value="biweekly">Bi-Weekly</option>
+        <option value="monthly">Monthly</option>
+        <option value="quarterly">Quarterly</option>
+        <option value="annual">Annually</option>
+      </select></div>
+    </div>
+    <div class="form-group"><label>Paid From Account</label><select id="b-account"><option value="">— Not assigned —</option></select></div>
+    <div class="form-row">
+      <div class="form-group"><label>Next Due Date</label><input type="date" id="b-date"></div>
+      <div class="form-group"><label>Category</label><select id="b-cat">
+        <option value="housing">Housing</option>
+        <option value="utilities">Utilities</option>
+        <option value="transport">Transport</option>
+        <option value="insurance">Insurance</option>
+        <option value="subscriptions">Subscriptions</option>
+        <option value="food">Food</option>
+        <option value="health">Health</option>
+        <option value="debt">Debt Payments</option>
+        <option value="other">Other</option>
+      </select></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('m-bill')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveBill()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Big Purchase Modal -->
+<div class="modal-overlay" id="m-bp">
+  <div class="modal">
+    <div class="modal-title" id="bp-modal-title">Add Big Purchase</div>
+    <input type="hidden" id="bp-id">
+    <p style="font-size:13px;color:#64748b;margin-bottom:20px;">Log this so it doesn't get counted as regular spending when you update your bank balance.</p>
+    <div class="form-group"><label>What did you buy?</label><input id="bp-desc" placeholder="e.g. New laptop, Car repair, TV"></div>
+    <div class="form-row">
+      <div class="form-group"><label>Amount ($)</label><input type="number" id="bp-amount" placeholder="0.00" step="0.01" min="0"></div>
+      <div class="form-group"><label>Date of Purchase</label><input type="date" id="bp-date"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('m-bp')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveBp()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Event Modal -->
+<div class="modal-overlay" id="m-event">
+  <div class="modal">
+    <div class="modal-title" id="event-modal-title">Add One-Time Event</div>
+    <input type="hidden" id="e-id">
+    <div class="form-group"><label>Description</label><input id="e-desc" placeholder="e.g. Tax refund, Bonus, Vacation trip"></div>
+    <div class="form-row">
+      <div class="form-group"><label>Amount ($)</label><input type="number" id="e-amount" placeholder="0.00" step="0.01" min="0"></div>
+      <div class="form-group"><label>Date</label><input type="date" id="e-date"></div>
+    </div>
+    <div class="form-group"><label>Type</label><select id="e-type">
+      <option value="income">💵 Money In — Bonus, refund, gift, etc.</option>
+      <option value="expense">💸 Money Out — One-time expense, trip, etc.</option>
+    </select></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('m-event')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveEvent()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Auth Screen -->
+<div id="auth-screen">
+  <div class="auth-box">
+    <div class="auth-logo">💰 Budget Cycle</div>
+    <div class="auth-tagline">Your personal finance tracker</div>
+    <div class="auth-title" id="auth-title">Sign in to your account</div>
+    <div class="auth-error" id="auth-error"></div>
+    <div class="form-group"><label>Email</label><input type="email" id="auth-email" placeholder="you@example.com" onkeydown="if(event.key==='Enter')handleAuth()"></div>
+    <div class="form-group"><label>Password</label><input type="password" id="auth-password" placeholder="••••••••" onkeydown="if(event.key==='Enter')handleAuth()"></div>
+    <button class="btn btn-primary" id="auth-btn" style="width:100%;padding:12px;" onclick="handleAuth()">Sign In</button>
+    <div class="auth-switch"><a href="#" id="auth-switch-link" onclick="toggleAuthMode();return false;">Don't have an account? Sign up</a></div>
+  </div>
+</div>
+
+<script>
+// ─── STATE ──────────────────────────────────────────────────
+let S = {
+  accounts: [],
+  income: [],
+  bills: [],
+  bigPurchases: [],
+  events: [],
+  balanceSnapshots: [],
+  settings: { dailySpend: null }
+};
+let projRange = 3;
+let chart = null;
+
+// ─── SUPABASE ────────────────────────────────────────────────
+const SUPA_URL = 'https://ryiwrxhkkjzjipuqjgfj.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ5aXdyeGhra2p6amlwdXFqZ2ZqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgyNDA5NDQsImV4cCI6MjA5MzgxNjk0NH0.ApTOh3DVaEG2Y-nrJOw9jBD0FjcyR7NMVHdgh2QuLmY';
+const sb = window.supabase.createClient(SUPA_URL, SUPA_KEY);
+let currentUser = null;
+let saveTimer = null;
+
+// ─── PERSISTENCE ────────────────────────────────────────────
+function defaultState() {
+  return { accounts:[], income:[], bills:[], bigPurchases:[], events:[], balanceSnapshots:[], settings:{ dailySpend:null } };
+}
+function migrateState() {
+  if (!S.bigPurchases) S.bigPurchases = (S.transactions||[]).filter(t=>t.big).map(t=>({id:t.id,date:t.date,desc:t.desc,amount:t.amount}));
+  if (!S.balanceSnapshots) S.balanceSnapshots = [];
+  if (!S.settings) S.settings = { dailySpend: null };
+}
+
+function save() {
+  localStorage.setItem('bc2', JSON.stringify(S));
+  if (!currentUser) return;
+  setSaveStatus('saving');
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
+    try {
+      const { error } = await sb.from('budget_data').upsert({
+        user_id: currentUser.id,
+        data: S,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'user_id' });
+      setSaveStatus(error ? 'error' : 'saved');
+    } catch(e) { setSaveStatus('error'); }
+  }, 1500);
+}
+
+async function loadUserData() {
+  const { data, error } = await sb.from('budget_data').select('data').eq('user_id', currentUser.id).single();
+  if (data?.data) {
+    S = { ...defaultState(), ...data.data };
+    migrateState();
+  } else {
+    S = defaultState();
+  }
+}
+
+function setSaveStatus(status) {
+  const dot = document.getElementById('save-dot');
+  const txt = document.getElementById('save-txt');
+  if (!dot || !txt) return;
+  if (status === 'saved')  { dot.style.background='#10b981'; txt.textContent='Saved'; }
+  if (status === 'saving') { dot.style.background='#f59e0b'; txt.textContent='Saving…'; }
+  if (status === 'error')  { dot.style.background='#ef4444'; txt.textContent='Save error'; }
+}
+
+// ─── AUTH ─────────────────────────────────────────────────────
+let authMode = 'signin';
+
+function toggleAuthMode() {
+  authMode = authMode === 'signin' ? 'signup' : 'signin';
+  const isSignup = authMode === 'signup';
+  document.getElementById('auth-title').textContent = isSignup ? 'Create an account' : 'Sign in to your account';
+  document.getElementById('auth-btn').textContent = isSignup ? 'Sign Up' : 'Sign In';
+  document.getElementById('auth-switch-link').textContent = isSignup ? 'Already have an account? Sign in' : "Don't have an account? Sign up";
+  document.getElementById('auth-error').style.display = 'none';
+}
+
+async function handleAuth() {
+  const email = document.getElementById('auth-email').value.trim();
+  const password = document.getElementById('auth-password').value;
+  const errEl = document.getElementById('auth-error');
+  errEl.style.display = 'none';
+  if (!email || !password) { showAuthError('Please enter your email and password.'); return; }
+  document.getElementById('auth-btn').textContent = 'Please wait…';
+  document.getElementById('auth-btn').disabled = true;
+  try {
+    let result;
+    if (authMode === 'signin') {
+      result = await sb.auth.signInWithPassword({ email, password });
+    } else {
+      result = await sb.auth.signUp({ email, password });
+    }
+    if (result.error) {
+      showAuthError(result.error.message);
+    } else if (authMode === 'signup' && !result.data?.session) {
+      showAuthError('Check your email for a confirmation link, then sign in.');
+    }
+  } catch(e) { showAuthError('Something went wrong. Try again.'); }
+  document.getElementById('auth-btn').textContent = authMode === 'signin' ? 'Sign In' : 'Sign Up';
+  document.getElementById('auth-btn').disabled = false;
+}
+
+function showAuthError(msg) {
+  const el = document.getElementById('auth-error');
+  el.textContent = msg; el.style.display = 'block';
+}
+
+async function signOut() {
+  await sb.auth.signOut();
+  currentUser = null;
+  S = defaultState();
+  document.getElementById('auth-screen').style.display = 'flex';
+}
+
+function showApp(user) {
+  currentUser = user;
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('sidebar-user').textContent = user.email;
+  setSaveStatus('saved');
+}
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
+function today() { return new Date().toISOString().slice(0, 10); }
+
+// ─── FORMAT ─────────────────────────────────────────────────
+function fmtMoney(n) {
+  const neg = n < 0; const abs = Math.abs(n);
+  return (neg ? '-' : '') + '$' + abs.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function fmtDate(d) {
+  if (!d) return ''; const [y, m, day] = d.split('-'); return `${m}/${day}/${y}`;
+}
+function freqLabel(f) {
+  return { weekly:'Weekly', biweekly:'Bi-Weekly', semimonthly:'2x/Month', monthly:'Monthly', quarterly:'Quarterly', annual:'Annual' }[f] || f;
+}
+function freqToMonthly(amount, freq) {
+  const r = { weekly: 4.33, biweekly: 2.165, semimonthly: 2, monthly: 1, quarterly: 1/3, annual: 1/12 };
+  return amount * (r[freq] || 1);
+}
+
+// ─── NAV ────────────────────────────────────────────────────
+function nav(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + page).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => {
+    if (n.getAttribute('onclick') && n.getAttribute('onclick').includes("'" + page + "'")) n.classList.add('active');
+  });
+  render(page);
+}
+function render(page) {
+  if (page === 'dashboard') renderDashboard();
+  else if (page === 'accounts') renderAccounts();
+  else if (page === 'income') renderIncome();
+  else if (page === 'bills') renderBills();
+  else if (page === 'bigpurchases') renderBigPurchases();
+  else if (page === 'events') renderEvents();
+  else if (page === 'settings') renderSettings();
+}
+
+// ─── MODALS ─────────────────────────────────────────────────
+function openModal(id) { document.getElementById(id).classList.add('show'); }
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+document.querySelectorAll('.modal-overlay').forEach(o => {
+  o.addEventListener('click', e => { if (e.target === o) closeModal(o.id); });
+});
+
+// ─── SNAPSHOTS ──────────────────────────────────────────────
+function takeSnapshot() {
+  const total = S.accounts.reduce((s, a) => s + a.balance, 0);
+  const t = today();
+  const idx = S.balanceSnapshots.findIndex(s => s.date === t);
+  if (idx > -1) {
+    S.balanceSnapshots[idx].totalBalance = total;
+  } else {
+    S.balanceSnapshots.push({ id: uid(), date: t, totalBalance: total });
+  }
+  // Keep sorted oldest→newest
+  S.balanceSnapshots.sort((a, b) => a.date.localeCompare(b.date));
+}
+
+// ─── ACCOUNTS ───────────────────────────────────────────────
+function clearAccountForm() {
+  document.getElementById('a-id').value = '';
+  document.getElementById('a-name').value = '';
+  document.getElementById('a-balance').value = '';
+  document.getElementById('a-type').value = 'checking';
+  document.getElementById('a-prev-wrap').style.display = 'none';
+  document.getElementById('account-modal-title').textContent = 'Add Bank Account';
+}
+function saveAccount() {
+  const name = document.getElementById('a-name').value.trim();
+  const balance = parseFloat(document.getElementById('a-balance').value);
+  const type = document.getElementById('a-type').value;
+  const id = document.getElementById('a-id').value;
+  if (!name || isNaN(balance)) { alert('Please fill in all fields.'); return; }
+  if (id) {
+    const i = S.accounts.findIndex(a => a.id === id);
+    if (i > -1) S.accounts[i] = { id, name, balance, type, lastUpdated: today() };
+  } else {
+    S.accounts.push({ id: uid(), name, balance, type, lastUpdated: today() });
+  }
+  takeSnapshot();
+  save();
+  closeModal('m-account');
+  renderAccounts();
+  if (document.getElementById('page-dashboard').classList.contains('active')) renderDashboard();
+}
+function editAccount(id) {
+  const a = S.accounts.find(x => x.id === id); if (!a) return;
+  document.getElementById('a-id').value = a.id;
+  document.getElementById('a-name').value = a.name;
+  document.getElementById('a-balance').value = a.balance;
+  document.getElementById('a-type').value = a.type;
+  const wrap = document.getElementById('a-prev-wrap');
+  wrap.style.display = 'block';
+  wrap.textContent = `Previous balance: ${fmtMoney(a.balance)} — enter the new current balance above`;
+  document.getElementById('account-modal-title').textContent = 'Update Balance';
+  openModal('m-account');
+}
+function delAccount(id) {
+  if (!confirm('Delete this account?')) return;
+  S.accounts = S.accounts.filter(a => a.id !== id);
+  takeSnapshot();
+  save();
+  renderAccounts();
+  if (document.getElementById('page-dashboard').classList.contains('active')) renderDashboard();
+}
+function renderAccounts() {
+  const b = document.getElementById('accounts-body');
+  if (!S.accounts.length) {
+    b.innerHTML = emptyRow(5, '🏦', 'No accounts yet', 'Add your bank accounts to get started');
+  } else {
+    b.innerHTML = S.accounts.map(a => `<tr>
+      <td><strong>${esc(a.name)}</strong></td>
+      <td><span class="badge b-blue">${a.type}</span></td>
+      <td><span class="${a.balance >= 0 ? 'amt-pos' : 'amt-neg'}">${fmtMoney(a.balance)}</span></td>
+      <td style="color:#94a3b8;font-size:13px;">${a.lastUpdated ? fmtDate(a.lastUpdated) : '—'}</td>
+      <td>
+        <button class="btn btn-primary btn-sm" style="margin-right:6px" onclick="editAccount('${a.id}')">Update Balance</button>
+        <button class="btn btn-danger" onclick="delAccount('${a.id}')">Delete</button>
+      </td>
+    </tr>`).join('');
+  }
+
+  // Snapshot history
+  const snaps = [...S.balanceSnapshots].reverse();
+  const list = document.getElementById('snapshot-list');
+  if (!snaps.length) {
+    list.innerHTML = '<div class="empty" style="padding:24px;"><p>No snapshots yet — update an account balance to create your first one</p></div>';
+    return;
+  }
+  list.innerHTML = snaps.map((s, i) => {
+    const prev = snaps[i + 1];
+    const change = prev ? s.totalBalance - prev.totalBalance : null;
+    let changeHtml = '';
+    if (change !== null) {
+      const cls = change >= 0 ? 'amt-pos' : 'amt-neg';
+      changeHtml = `<span class="${cls}" style="font-size:13px;">${change >= 0 ? '+' : ''}${fmtMoney(change)}</span>`;
+    }
+    return `<div class="snap-row">
+      <div class="snap-dot"></div>
+      <div class="snap-date">${fmtDate(s.date)}</div>
+      <div class="snap-bal">${fmtMoney(s.totalBalance)}</div>
+      ${changeHtml ? `<div class="snap-change">${changeHtml} since last update</div>` : '<div class="snap-change" style="color:#94a3b8;font-size:12px;">First snapshot</div>'}
+      <button class="btn btn-danger" style="margin-left:8px;" onclick="delSnapshot('${s.id}')">✕</button>
+    </div>`;
+  }).join('');
+}
+function delSnapshot(id) {
+  if (!confirm('Delete this snapshot? This affects habit calculations.')) return;
+  S.balanceSnapshots = S.balanceSnapshots.filter(s => s.id !== id);
+  save();
+  renderAccounts();
+}
+
+// ─── INCOME ─────────────────────────────────────────────────
+function clearIncomeForm() {
+  document.getElementById('inc-id').value = '';
+  document.getElementById('inc-name').value = '';
+  document.getElementById('inc-amount').value = '';
+  document.getElementById('inc-freq').value = 'biweekly';
+  document.getElementById('inc-date').value = today();
+  document.getElementById('income-modal-title').textContent = 'Add Income Source';
+  populateAccountSelect('inc-account', '');
+}
+function populateAccountSelect(selectId, selectedId) {
+  const sel = document.getElementById(selectId);
+  sel.innerHTML = '<option value="">— Not assigned —</option>' +
+    S.accounts.map(a => `<option value="${a.id}" ${a.id === selectedId ? 'selected' : ''}>${esc(a.name)}</option>`).join('');
+}
+function saveIncome() {
+  const name = document.getElementById('inc-name').value.trim();
+  const amount = parseFloat(document.getElementById('inc-amount').value);
+  const freq = document.getElementById('inc-freq').value;
+  const nextDate = document.getElementById('inc-date').value;
+  const accountId = document.getElementById('inc-account').value;
+  const id = document.getElementById('inc-id').value;
+  if (!name || isNaN(amount) || !nextDate) { alert('Please fill in all fields.'); return; }
+  if (id) { const i = S.income.findIndex(x => x.id === id); if (i > -1) S.income[i] = { id, name, amount, freq, nextDate, accountId }; }
+  else S.income.push({ id: uid(), name, amount, freq, nextDate, accountId });
+  save(); closeModal('m-income'); renderIncome();
+}
+function editIncome(id) {
+  const a = S.income.find(x => x.id === id); if (!a) return;
+  document.getElementById('inc-id').value = a.id;
+  document.getElementById('inc-name').value = a.name;
+  document.getElementById('inc-amount').value = a.amount;
+  document.getElementById('inc-freq').value = a.freq;
+  document.getElementById('inc-date').value = a.nextDate;
+  document.getElementById('income-modal-title').textContent = 'Edit Income Source';
+  populateAccountSelect('inc-account', a.accountId || '');
+  openModal('m-income');
+}
+function delIncome(id) {
+  if (!confirm('Delete this income source?')) return;
+  S.income = S.income.filter(x => x.id !== id); save(); renderIncome();
+}
+function renderIncome() {
+  const b = document.getElementById('income-body');
+  if (!S.income.length) { b.innerHTML = emptyRow(6, '💵', 'No income sources', 'Add your paycheck, side gigs, or any regular income'); return; }
+  b.innerHTML = S.income.map(i => {
+    const acct = S.accounts.find(a => a.id === i.accountId);
+    const acctBadge = acct
+      ? `<span class="badge b-green">${esc(acct.name)}</span>`
+      : `<span style="color:#94a3b8;font-size:13px;">—</span>`;
+    return `<tr>
+      <td><strong>${esc(i.name)}</strong></td>
+      <td class="amt-pos">${fmtMoney(i.amount)}</td>
+      <td><span class="badge b-blue">${freqLabel(i.freq)}</span></td>
+      <td>${fmtDate(i.nextDate)}</td>
+      <td>${acctBadge}</td>
+      <td><button class="btn btn-secondary btn-sm" style="margin-right:6px" onclick="editIncome('${i.id}')">Edit</button><button class="btn btn-danger" onclick="delIncome('${i.id}')">Delete</button></td>
+    </tr>`;
+  }).join('');
+}
+
+// ─── BILLS ──────────────────────────────────────────────────
+function clearBillForm() {
+  document.getElementById('b-id').value = '';
+  document.getElementById('b-name').value = '';
+  document.getElementById('b-amount').value = '';
+  document.getElementById('b-freq').value = 'monthly';
+  document.getElementById('b-date').value = today();
+  document.getElementById('b-cat').value = 'utilities';
+  document.getElementById('bill-modal-title').textContent = 'Add Bill / Recurring Expense';
+  populateAccountSelect('b-account', '');
+}
+function saveBill() {
+  const name = document.getElementById('b-name').value.trim();
+  const amount = parseFloat(document.getElementById('b-amount').value);
+  const freq = document.getElementById('b-freq').value;
+  const nextDate = document.getElementById('b-date').value;
+  const cat = document.getElementById('b-cat').value;
+  const accountId = document.getElementById('b-account').value;
+  const id = document.getElementById('b-id').value;
+  if (!name || isNaN(amount) || !nextDate) { alert('Please fill in all fields.'); return; }
+  if (id) { const i = S.bills.findIndex(x => x.id === id); if (i > -1) S.bills[i] = { id, name, amount, freq, nextDate, cat, accountId }; }
+  else S.bills.push({ id: uid(), name, amount, freq, nextDate, cat, accountId });
+  save(); closeModal('m-bill'); renderBills();
+}
+function editBill(id) {
+  const a = S.bills.find(x => x.id === id); if (!a) return;
+  document.getElementById('b-id').value = a.id;
+  document.getElementById('b-name').value = a.name;
+  document.getElementById('b-amount').value = a.amount;
+  document.getElementById('b-freq').value = a.freq;
+  document.getElementById('b-date').value = a.nextDate;
+  document.getElementById('b-cat').value = a.cat;
+  document.getElementById('bill-modal-title').textContent = 'Edit Bill';
+  populateAccountSelect('b-account', a.accountId || '');
+  openModal('m-bill');
+}
+function delBill(id) {
+  if (!confirm('Delete this bill?')) return;
+  S.bills = S.bills.filter(x => x.id !== id); save(); renderBills();
+}
+function renderBills() {
+  const b = document.getElementById('bills-body');
+  if (!S.bills.length) { b.innerHTML = emptyRow(7, '📋', 'No bills yet', 'Add rent, utilities, subscriptions, and other recurring expenses'); return; }
+  const cc = { housing:'b-purple', utilities:'b-blue', transport:'b-yellow', insurance:'b-yellow', subscriptions:'b-blue', food:'b-green', health:'b-red', debt:'b-red', other:'b-blue' };
+  b.innerHTML = S.bills.map(x => {
+    const acct = S.accounts.find(a => a.id === x.accountId);
+    const acctBadge = acct
+      ? `<span class="badge b-red">${esc(acct.name)}</span>`
+      : `<span style="color:#94a3b8;font-size:13px;">—</span>`;
+    return `<tr>
+      <td><strong>${esc(x.name)}</strong></td>
+      <td class="amt-neg">-${fmtMoney(x.amount)}</td>
+      <td><span class="badge b-blue">${freqLabel(x.freq)}</span></td>
+      <td>${fmtDate(x.nextDate)}</td>
+      <td><span class="badge ${cc[x.cat] || 'b-blue'}">${x.cat}</span></td>
+      <td>${acctBadge}</td>
+      <td><button class="btn btn-secondary btn-sm" style="margin-right:6px" onclick="editBill('${x.id}')">Edit</button><button class="btn btn-danger" onclick="delBill('${x.id}')">Delete</button></td>
+    </tr>`;
+  }).join('');
+}
+
+// ─── BIG PURCHASES ──────────────────────────────────────────
+function clearBpForm() {
+  document.getElementById('bp-id').value = '';
+  document.getElementById('bp-desc').value = '';
+  document.getElementById('bp-amount').value = '';
+  document.getElementById('bp-date').value = today();
+  document.getElementById('bp-modal-title').textContent = 'Add Big Purchase';
+}
+function saveBp() {
+  const desc = document.getElementById('bp-desc').value.trim();
+  const amount = parseFloat(document.getElementById('bp-amount').value);
+  const date = document.getElementById('bp-date').value;
+  const id = document.getElementById('bp-id').value;
+  if (!desc || isNaN(amount) || !date) { alert('Please fill in all fields.'); return; }
+  if (id) { const i = S.bigPurchases.findIndex(x => x.id === id); if (i > -1) S.bigPurchases[i] = { id, desc, amount, date }; }
+  else S.bigPurchases.push({ id: uid(), desc, amount, date });
+  save(); closeModal('m-bp'); renderBigPurchases();
+}
+function editBp(id) {
+  const a = S.bigPurchases.find(x => x.id === id); if (!a) return;
+  document.getElementById('bp-id').value = a.id;
+  document.getElementById('bp-desc').value = a.desc;
+  document.getElementById('bp-amount').value = a.amount;
+  document.getElementById('bp-date').value = a.date;
+  document.getElementById('bp-modal-title').textContent = 'Edit Big Purchase';
+  openModal('m-bp');
+}
+function delBp(id) {
+  if (!confirm('Delete this big purchase?')) return;
+  S.bigPurchases = S.bigPurchases.filter(x => x.id !== id); save(); renderBigPurchases();
+}
+function renderBigPurchases() {
+  const daily = calcDailySpend();
+  const box = document.getElementById('habit-box');
+  if (daily.src === 'calc') {
+    box.className = 'info-box info-green';
+    box.innerHTML = `<strong>📊 Detected Spending Habit:</strong> ~${fmtMoney(daily.val)}/day (~${fmtMoney(daily.val * 30)}/month) — calculated from ${daily.periods} balance update${daily.periods !== 1 ? 's' : ''}, with your bills, income, and big purchases factored out.`;
+  } else if (daily.src === 'manual') {
+    box.className = 'info-box info-yellow';
+    box.innerHTML = `<strong>📊 Spending Habit (Manual Fallback):</strong> ~${fmtMoney(daily.val)}/day. Update your bank balances at least twice to enable auto-detection.`;
+  } else {
+    box.className = 'info-box info-blue';
+    box.innerHTML = `<strong>📊 Spending Habit:</strong> Not calculated yet. Go to <strong>Accounts</strong> and update your balances at least twice (on different days) to auto-detect your habits. Or set a fallback in Settings.`;
+  }
+
+  const b = document.getElementById('bp-body');
+  const sorted = [...S.bigPurchases].sort((a, c) => c.date.localeCompare(a.date));
+  if (!sorted.length) { b.innerHTML = emptyRow(4, '🛒', 'No big purchases logged', 'Log large purchases here so they don\'t distort your spending habits'); return; }
+  b.innerHTML = sorted.map(p => `<tr>
+    <td>${fmtDate(p.date)}</td>
+    <td><strong>${esc(p.desc)}</strong></td>
+    <td class="amt-neg">-${fmtMoney(p.amount)}</td>
+    <td><button class="btn btn-secondary btn-sm" style="margin-right:6px" onclick="editBp('${p.id}')">Edit</button><button class="btn btn-danger" onclick="delBp('${p.id}')">Delete</button></td>
+  </tr>`).join('');
+}
+
+// ─── ONE-TIME EVENTS ────────────────────────────────────────
+function clearEventForm() {
+  document.getElementById('e-id').value = '';
+  document.getElementById('e-desc').value = '';
+  document.getElementById('e-amount').value = '';
+  document.getElementById('e-date').value = today();
+  document.getElementById('e-type').value = 'income';
+  document.getElementById('event-modal-title').textContent = 'Add One-Time Event';
+}
+function saveEvent() {
+  const desc = document.getElementById('e-desc').value.trim();
+  const amount = parseFloat(document.getElementById('e-amount').value);
+  const date = document.getElementById('e-date').value;
+  const type = document.getElementById('e-type').value;
+  const id = document.getElementById('e-id').value;
+  if (!desc || isNaN(amount) || !date) { alert('Please fill in all fields.'); return; }
+  if (id) { const i = S.events.findIndex(x => x.id === id); if (i > -1) S.events[i] = { id, desc, amount, date, type }; }
+  else S.events.push({ id: uid(), desc, amount, date, type });
+  save(); closeModal('m-event'); renderEvents();
+}
+function editEvent(id) {
+  const a = S.events.find(x => x.id === id); if (!a) return;
+  document.getElementById('e-id').value = a.id;
+  document.getElementById('e-desc').value = a.desc;
+  document.getElementById('e-amount').value = a.amount;
+  document.getElementById('e-date').value = a.date;
+  document.getElementById('e-type').value = a.type;
+  document.getElementById('event-modal-title').textContent = 'Edit Event';
+  openModal('m-event');
+}
+function delEvent(id) {
+  if (!confirm('Delete this event?')) return;
+  S.events = S.events.filter(x => x.id !== id); save(); renderEvents();
+}
+function renderEvents() {
+  const b = document.getElementById('events-body');
+  const sorted = [...S.events].sort((a, c) => a.date.localeCompare(c.date));
+  if (!sorted.length) { b.innerHTML = emptyRow(5, '⭐', 'No one-time events', 'Add expected bonuses, tax refunds, or planned big expenses'); return; }
+  b.innerHTML = sorted.map(e => `<tr>
+    <td>${fmtDate(e.date)}</td>
+    <td>${esc(e.desc)}</td>
+    <td class="${e.type === 'income' ? 'amt-pos' : 'amt-neg'}">${e.type === 'income' ? '+' : '-'}${fmtMoney(e.amount)}</td>
+    <td><span class="badge ${e.type === 'income' ? 'b-green' : 'b-red'}">${e.type === 'income' ? 'Money In' : 'Money Out'}</span></td>
+    <td><button class="btn btn-secondary btn-sm" style="margin-right:6px" onclick="editEvent('${e.id}')">Edit</button><button class="btn btn-danger" onclick="delEvent('${e.id}')">Delete</button></td>
+  </tr>`).join('');
+}
+
+// ─── SETTINGS ───────────────────────────────────────────────
+function renderSettings() {
+  document.getElementById('s-daily').value = S.settings.dailySpend || '';
+  const d = calcDailySpend();
+  const lbl = document.getElementById('s-habit-lbl');
+  if (d.src === 'calc') lbl.textContent = `Auto-detected from balance history: ~${fmtMoney(d.val)}/day. A manual override will replace this.`;
+  else if (d.src === 'manual') lbl.textContent = `Using manual fallback: ${fmtMoney(S.settings.dailySpend)}/day`;
+  else lbl.textContent = 'No data yet — update balances at least twice to auto-detect.';
+  const ai = document.getElementById('settings-account-info');
+  if (ai) ai.textContent = currentUser ? `Signed in as ${currentUser.email}. Your data is saved to the cloud and syncs across devices.` : 'Not signed in.';
+}
+function saveSettings() {
+  const v = parseFloat(document.getElementById('s-daily').value);
+  S.settings.dailySpend = isNaN(v) ? null : v;
+  save(); renderSettings(); alert('Saved!');
+}
+
+// ─── SPENDING HABIT (SNAPSHOT-BASED) ────────────────────────
+function calcScheduledInPeriod(startDate, endDate, items) {
+  // Sum all occurrences strictly after startDate and up to+including endDate
+  let total = 0;
+  items.forEach(item => {
+    let cursor = item.nextDate;
+    // Advance past startDate
+    while (cursor <= startDate) cursor = advanceDate(cursor, item.freq);
+    // Sum up to endDate
+    while (cursor <= endDate) { total += item.amount; cursor = advanceDate(cursor, item.freq); }
+  });
+  return total;
+}
+
+function calcDailySpend() {
+  const snaps = S.balanceSnapshots || [];
+  if (snaps.length >= 2) {
+    let totalSpending = 0;
+    let totalDays = 0;
+    for (let i = 1; i < snaps.length; i++) {
+      const prev = snaps[i - 1];
+      const curr = snaps[i];
+      const days = (new Date(curr.date + 'T00:00:00') - new Date(prev.date + 'T00:00:00')) / 864e5;
+      if (days <= 0) continue;
+      const balChange = curr.totalBalance - prev.totalBalance;
+      const incomeIn = calcScheduledInPeriod(prev.date, curr.date, S.income);
+      const billsIn = calcScheduledInPeriod(prev.date, curr.date, S.bills);
+      const bigIn = (S.bigPurchases || [])
+        .filter(p => p.date > prev.date && p.date <= curr.date)
+        .reduce((s, p) => s + p.amount, 0);
+      // balance_change = income - bills - spending - bigPurchases
+      // → spending = income - bills - balChange - bigPurchases
+      const spending = incomeIn - billsIn - balChange - bigIn;
+      if (spending > 0) { totalSpending += spending; totalDays += days; }
+    }
+    if (totalDays > 0) {
+      return { src: 'calc', val: totalSpending / totalDays, periods: snaps.length - 1 };
+    }
+  }
+  if (S.settings && S.settings.dailySpend) return { src: 'manual', val: S.settings.dailySpend };
+  return { src: 'none', val: 0 };
+}
+
+// ─── PROJECTION ─────────────────────────────────────────────
+function advanceDate(d, freq) {
+  const dt = new Date(d + 'T00:00:00');
+  if (freq === 'weekly') dt.setDate(dt.getDate() + 7);
+  else if (freq === 'biweekly') dt.setDate(dt.getDate() + 14);
+  else if (freq === 'semimonthly') { if (dt.getDate() < 15) dt.setDate(15); else { dt.setMonth(dt.getMonth() + 1); dt.setDate(1); } }
+  else if (freq === 'monthly') dt.setMonth(dt.getMonth() + 1);
+  else if (freq === 'quarterly') dt.setMonth(dt.getMonth() + 3);
+  else if (freq === 'annual') dt.setFullYear(dt.getFullYear() + 1);
+  return dt.toISOString().slice(0, 10);
+}
+
+function buildEventMap(fromDate, daysAhead) {
+  const map = {};
+  const endDt = new Date(fromDate + 'T00:00:00'); endDt.setDate(endDt.getDate() + daysAhead);
+  const end = endDt.toISOString().slice(0, 10);
+  function add(date, delta) { if (date >= fromDate && date <= end) map[date] = (map[date] || 0) + delta; }
+  S.income.forEach(inc => {
+    let c = inc.nextDate;
+    while (c < fromDate) c = advanceDate(c, inc.freq);
+    while (c <= end) { add(c, inc.amount); c = advanceDate(c, inc.freq); }
+  });
+  S.bills.forEach(bill => {
+    let c = bill.nextDate;
+    while (c < fromDate) c = advanceDate(c, bill.freq);
+    while (c <= end) { add(c, -bill.amount); c = advanceDate(c, bill.freq); }
+  });
+  S.events.forEach(ev => { add(ev.date, ev.type === 'income' ? ev.amount : -ev.amount); });
+  // Future big purchases also hit the balance
+  S.bigPurchases.forEach(bp => { if (bp.date >= fromDate) add(bp.date, -bp.amount); });
+  return map;
+}
+
+function calcProjection(months) {
+  const t = today();
+  const daysAhead = months * 30;
+  let balance = S.accounts.reduce((s, a) => s + a.balance, 0);
+  const daily = calcDailySpend().val;
+  const map = buildEventMap(t, daysAhead);
+  const endDt = new Date(t + 'T00:00:00'); endDt.setDate(endDt.getDate() + daysAhead);
+  const labels = [], balances = [], dots = [], dates = [];
+  labels.push(fmtChartDate(t)); balances.push(+balance.toFixed(2)); dots.push(null); dates.push(t);
+  let prev = new Date(t + 'T00:00:00');
+  let cursor = new Date(t + 'T00:00:00'); cursor.setDate(cursor.getDate() + 7);
+  while (cursor <= endDt) {
+    balance -= daily * ((cursor - prev) / 864e5);
+    let evtTotal = 0;
+    let d = new Date(prev); d.setDate(d.getDate() + 1);
+    while (d <= cursor) {
+      const ds = d.toISOString().slice(0, 10);
+      if (map[ds]) { balance += map[ds]; evtTotal += map[ds]; }
+      d.setDate(d.getDate() + 1);
+    }
+    const ds = cursor.toISOString().slice(0, 10);
+    labels.push(fmtChartDate(ds)); balances.push(+balance.toFixed(2));
+    dots.push(evtTotal !== 0 ? +balance.toFixed(2) : null); dates.push(ds);
+    prev = new Date(cursor); cursor.setDate(cursor.getDate() + 7);
+  }
+  return { labels, balances, dots, dates };
+}
+
+let projDates = [];
+
+function getBreakdownAtDate(targetDate) {
+  const t = today();
+  const daysElapsed = Math.max(0, (new Date(targetDate + 'T00:00:00') - new Date(t + 'T00:00:00')) / 864e5);
+  const totalBalance = S.accounts.reduce((s, a) => s + a.balance, 0);
+  const n = Math.max(S.accounts.length, 1);
+  const totalSpend = calcDailySpend().val * daysElapsed;
+
+  // Unassigned items (no account linked) — distributed proportionally
+  const unassignedInc  = calcScheduledInPeriod(t, targetDate, S.income.filter(i => !i.accountId));
+  const unassignedBills = calcScheduledInPeriod(t, targetDate, S.bills.filter(b => !b.accountId));
+  const unassignedEvents = S.events
+    .filter(ev => ev.date > t && ev.date <= targetDate)
+    .reduce((s, ev) => s + (ev.type === 'income' ? ev.amount : -ev.amount), 0);
+  const unassignedBig = S.bigPurchases
+    .filter(bp => bp.date > t && bp.date <= targetDate)
+    .reduce((s, bp) => s + bp.amount, 0);
+  const unassignedNet = unassignedInc - unassignedBills + unassignedEvents - unassignedBig;
+
+  const rows = S.accounts.map(a => {
+    const share = totalBalance > 0 ? a.balance / totalBalance : 1 / n;
+    const assignedInc   = calcScheduledInPeriod(t, targetDate, S.income.filter(i => i.accountId === a.id));
+    const assignedBills = calcScheduledInPeriod(t, targetDate, S.bills.filter(b => b.accountId === a.id));
+    const projected = a.balance + assignedInc - assignedBills - (totalSpend * share) + (unassignedNet * share);
+    return { name: a.name, type: a.type, start: a.balance, projected: +projected.toFixed(2) };
+  });
+
+  return {
+    date: targetDate,
+    daysAhead: Math.round(daysElapsed),
+    rows,
+    total: +rows.reduce((s, r) => s + r.projected, 0).toFixed(2)
+  };
+}
+
+function showBreakdown(idx) {
+  if (!projDates[idx]) return;
+  const bd = getBreakdownAtDate(projDates[idx]);
+  const panel = document.getElementById('breakdown-panel');
+  const hasAccounts = bd.rows.length > 0;
+  const dateLabel = bd.daysAhead === 0 ? 'Today' : `${bd.daysAhead} day${bd.daysAhead !== 1 ? 's' : ''} from now`;
+
+  if (!hasAccounts) {
+    panel.innerHTML = `<div class="bd-header"><div><div class="bd-title">📅 ${fmtDate(bd.date)}</div><div class="bd-sub">Add accounts to see a per-account breakdown</div></div><button class="bd-close" onclick="hideBreakdown()">×</button></div>`;
+    panel.style.display = 'block';
+    return;
+  }
+
+  const rows = bd.rows.map(r => {
+    const change = r.projected - r.start;
+    const chgClass = change >= 0 ? 'amt-pos' : 'amt-neg';
+    const chgStr = (change >= 0 ? '+' : '') + fmtMoney(change);
+    return `<tr>
+      <td>${esc(r.name)} <span style="font-size:11px;color:#94a3b8;font-weight:400;">${r.type}</span></td>
+      <td>${fmtMoney(r.start)}</td>
+      <td>${fmtMoney(r.projected)}</td>
+      <td class="${chgClass}">${chgStr}</td>
+    </tr>`;
+  }).join('');
+
+  const totalChange = bd.total - S.accounts.reduce((s, a) => s + a.balance, 0);
+  const totChgClass = totalChange >= 0 ? 'amt-pos' : 'amt-neg';
+
+  panel.innerHTML = `
+    <div class="bd-header">
+      <div><div class="bd-title">📅 ${fmtDate(bd.date)} &nbsp;·&nbsp; <span style="color:#64748b;font-weight:400;">${dateLabel}</span></div></div>
+      <button class="bd-close" onclick="hideBreakdown()">×</button>
+    </div>
+    <table class="bd-table">
+      <thead><tr><th>Account</th><th>Today</th><th>Projected</th><th>Change</th></tr></thead>
+      <tbody>
+        ${rows}
+        <tr class="total-row">
+          <td>Total</td>
+          <td>${fmtMoney(S.accounts.reduce((s, a) => s + a.balance, 0))}</td>
+          <td>${fmtMoney(bd.total)}</td>
+          <td class="${totChgClass}">${(totalChange >= 0 ? '+' : '') + fmtMoney(totalChange)}</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="bd-note">Daily spending and unassigned bills/income are distributed proportionally by current account balance.</div>`;
+  panel.style.display = 'block';
+}
+
+function hideBreakdown() {
+  document.getElementById('breakdown-panel').style.display = 'none';
+}
+
+function fmtChartDate(d) {
+  const [y, m, day] = d.split('-');
+  return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+m - 1] + ' ' + parseInt(day);
+}
+
+// ─── DASHBOARD ──────────────────────────────────────────────
+function renderDashboard() {
+  document.getElementById('today-lbl').textContent = new Date().toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+  const totalBal = S.accounts.reduce((s, a) => s + a.balance, 0);
+  const monthInc = S.income.reduce((s, i) => s + freqToMonthly(i.amount, i.freq), 0);
+  const monthBills = S.bills.reduce((s, b) => s + freqToMonthly(b.amount, b.freq), 0);
+  const d = calcDailySpend();
+  const monthSpend = d.val * 30;
+  const net = monthInc - monthBills - monthSpend;
+  const habitLabel = d.src === 'calc' ? `~${fmtMoney(d.val)}/day detected` : d.src === 'manual' ? `~${fmtMoney(d.val)}/day (manual)` : 'Update balances to detect';
+  document.getElementById('summary-grid').innerHTML = `
+    <div class="summary-card"><div class="s-label">Total Balance</div><div class="s-value ${totalBal >= 0 ? 'pos' : 'neg'}">${fmtMoney(totalBal)}</div><div class="s-sub">${S.accounts.length} account${S.accounts.length !== 1 ? 's' : ''}</div></div>
+    <div class="summary-card green"><div class="s-label">Monthly Income</div><div class="s-value pos">${fmtMoney(monthInc)}</div><div class="s-sub">${S.income.length} source${S.income.length !== 1 ? 's' : ''}</div></div>
+    <div class="summary-card red"><div class="s-label">Monthly Bills</div><div class="s-value neg">-${fmtMoney(monthBills)}</div><div class="s-sub">${S.bills.length} bill${S.bills.length !== 1 ? 's' : ''}</div></div>
+    <div class="summary-card purple"><div class="s-label">Spending Habit</div><div class="s-value" style="font-size:18px;color:#8b5cf6;">${habitLabel}</div><div class="s-sub">Est. net/mo: ${fmtMoney(net)}</div></div>`;
+  renderChart(projRange);
+  renderDashLists();
+}
+function renderChart(months) {
+  const { labels, balances, dots, dates } = calcProjection(months);
+  projDates = dates;
+  hideBreakdown();
+  const ctx = document.getElementById('proj-chart');
+  const color = balances[balances.length - 1] >= balances[0] ? '#10b981' : '#ef4444';
+  if (chart) chart.destroy();
+  chart = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets: [
+      { label:'Projected Balance', data:balances, borderColor:color, backgroundColor:color+'18', fill:true, tension:.3, pointRadius:2, pointHoverRadius:6, borderWidth:2.5 },
+      { label:'Key Event', data:dots, borderColor:'transparent', backgroundColor:'#f59e0b', pointRadius:6, pointHoverRadius:8, showLine:false }
+    ]},
+    options: {
+      responsive: true,
+      interaction: { intersect:false, mode:'index' },
+      onClick(evt, elements) {
+        if (!elements.length) { hideBreakdown(); return; }
+        showBreakdown(elements[0].index);
+      },
+      plugins: {
+        legend:{ display:false },
+        tooltip:{ callbacks:{ label(c){ if(c.datasetIndex===0) return` Balance: ${fmtMoney(c.raw)}`; if(c.raw!=null) return` Bill / Income / Event`; return null; } } }
+      },
+      scales: {
+        y: { ticks:{ callback:v=>fmtMoney(v), font:{size:11} }, grid:{ color:'#f1f5f9' } },
+        x: { ticks:{ font:{size:11}, maxTicksLimit:10 }, grid:{ display:false } }
+      }
+    }
+  });
+}
+function setRange(m, btn) {
+  projRange = m;
+  document.querySelectorAll('.cbtn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderChart(m);
+}
+function renderDashLists() {
+  const t = today();
+  const bills = [...S.bills].filter(b => b.nextDate >= t).sort((a,b) => a.nextDate.localeCompare(b.nextDate)).slice(0, 5);
+  const income = [...S.income].filter(i => i.nextDate >= t).sort((a,b) => a.nextDate.localeCompare(b.nextDate)).slice(0, 5);
+  document.getElementById('dash-lists').innerHTML = `
+    <div class="card">
+      <div style="font-weight:700;margin-bottom:14px;">Upcoming Bills</div>
+      ${bills.length ? bills.map(b => `<div class="list-row"><div><div class="list-name">${esc(b.name)}</div><div class="list-date">${fmtDate(b.nextDate)}</div></div><div class="amt-neg">-${fmtMoney(b.amount)}</div></div>`).join('') : '<div class="empty" style="padding:20px;"><p>No upcoming bills</p></div>'}
+    </div>
+    <div class="card">
+      <div style="font-weight:700;margin-bottom:14px;">Upcoming Income</div>
+      ${income.length ? income.map(i => `<div class="list-row"><div><div class="list-name">${esc(i.name)}</div><div class="list-date">${fmtDate(i.nextDate)}</div></div><div class="amt-pos">+${fmtMoney(i.amount)}</div></div>`).join('') : '<div class="empty" style="padding:20px;"><p>No upcoming income</p></div>'}
+    </div>`;
+}
+
+// ─── DATA MGMT ───────────────────────────────────────────────
+function exportData() {
+  const blob = new Blob([JSON.stringify(S, null, 2)], { type:'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'budget-cycle-backup.json'; a.click();
+}
+function importData(e) {
+  const f = e.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = ev => {
+    try { if (!confirm('Replace all data with this backup?')) return; S = JSON.parse(ev.target.result); save(); renderDashboard(); alert('Imported!'); }
+    catch(err) { alert('Invalid file.'); }
+  };
+  r.readAsText(f);
+}
+function clearAll() {
+  if (!confirm('Delete ALL data? This cannot be undone.')) return;
+  S = { accounts:[], income:[], bills:[], bigPurchases:[], events:[], balanceSnapshots:[], settings:{ dailySpend:null } };
+  save(); renderDashboard(); alert('Cleared.');
+}
+
+// ─── HELPERS ────────────────────────────────────────────────
+function emptyRow(cols, ico, msg, sub) {
+  return `<tr><td colspan="${cols}"><div class="empty"><div class="ico">${ico}</div><p>${msg}</p><small>${sub}</small></div></td></tr>`;
+}
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ─── INIT ────────────────────────────────────────────────────
+async function init() {
+  S = defaultState();
+
+  // Listen for auth state changes (login, logout, token refresh)
+  sb.auth.onAuthStateChange(async (event, session) => {
+    if (session?.user) {
+      await loadUserData();
+      showApp(session.user);
+      renderDashboard();
+      if (document.getElementById('page-settings').classList.contains('active')) renderSettings();
+    } else {
+      currentUser = null;
+      S = defaultState();
+      document.getElementById('auth-screen').style.display = 'flex';
+    }
+  });
+
+  // Check for an existing session on load
+  const { data: { session } } = await sb.auth.getSession();
+  if (session?.user) {
+    await loadUserData();
+    showApp(session.user);
+  }
+  renderDashboard();
+}
+
+init();
+</script>
+</body>
+</html>
