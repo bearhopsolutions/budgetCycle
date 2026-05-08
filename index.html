@@ -449,11 +449,12 @@ function save() {
 async function loadUserData() {
   console.log('loadUserData: fetching for user', currentUser?.id);
   try {
-    const { data, error } = await sb.from('budget_data').select('data').eq('user_id', currentUser.id).single();
-    console.log('loadUserData result:', JSON.stringify({ data, error }));
+    const { data: rows, error } = await sb.from('budget_data').select('data').eq('user_id', currentUser.id).limit(1);
+    console.log('loadUserData result:', JSON.stringify({ rows, error }));
     if (error) { console.error('loadUserData error:', error); }
-    if (data?.data) {
-      S = { ...defaultState(), ...data.data };
+    const row = rows?.[0];
+    if (row?.data) {
+      S = { ...defaultState(), ...row.data };
       migrateState();
       console.log('loadUserData: loaded accounts:', S.accounts?.length);
     } else {
