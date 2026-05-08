@@ -446,14 +446,12 @@ function save() {
   }, 1500);
 }
 
-async function loadUserData() {
+async function loadUserData(accessToken) {
   console.log('loadUserData: fetching for user', currentUser?.id);
   try {
-    const { data: { session } } = await sb.auth.getSession();
-    console.log('loadUserData: session token present?', !!session?.access_token);
     const res = await fetch(
       `${SUPA_URL}/rest/v1/budget_data?user_id=eq.${currentUser.id}&select=data&limit=1`,
-      { headers: { 'apikey': SUPA_KEY, 'Authorization': `Bearer ${session.access_token}` } }
+      { headers: { 'apikey': SUPA_KEY, 'Authorization': `Bearer ${accessToken}` } }
     );
     const rows = await res.json();
     console.log('loadUserData result:', JSON.stringify(rows));
@@ -1237,7 +1235,7 @@ async function init() {
   sb.auth.onAuthStateChange(async (event, session) => {
     if (session?.user) {
       showApp(session.user);
-      await loadUserData();
+      await loadUserData(session.access_token);
       renderDashboard();
       if (document.getElementById('page-settings').classList.contains('active')) renderSettings();
     } else {
@@ -1251,7 +1249,7 @@ async function init() {
   const { data: { session } } = await sb.auth.getSession();
   if (session?.user) {
     showApp(session.user);
-    await loadUserData();
+    await loadUserData(session.access_token);
   }
   renderDashboard();
 }
