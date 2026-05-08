@@ -497,7 +497,7 @@ async function handleAuth() {
     } else if (authMode === 'signup' && !result.data?.session) {
       showAuthError('Check your email for a confirmation link, then sign in.');
     }
-  } catch(e) { showAuthError('Something went wrong. Try again.'); }
+  } catch(e) { showAuthError(e.message || String(e) || 'Something went wrong. Try again.'); }
   document.getElementById('auth-btn').textContent = authMode === 'signin' ? 'Sign In' : 'Sign Up';
   document.getElementById('auth-btn').disabled = false;
 }
